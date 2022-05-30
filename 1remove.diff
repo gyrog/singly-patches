@@ -1,0 +1,271 @@
+--- init.git	2022-05-12 13:02:13.200057000 +1000
++++ init	2022-05-23 16:47:12.479156953 +1000
+@@ -75,21 +75,6 @@
+ . /etc/rc.d/functions_x
+ export DISTRODESC="${DISTRO_NAME} ${DISTRO_VERSION} - Linux ${KERNELVER} - `uname -m`"
+ 
+-#precaution - if DISTRO_SPECS was not processed by 3builddistro...
+-[ ! "$DISTRO_ZDRVSFS" ] && DISTRO_ZDRVSFS="zdrv_${DISTRO_FILE_PREFIX}_${DISTRO_VERSION}.sfs"
+-[ ! "$DISTRO_FDRVSFS" ] && DISTRO_FDRVSFS="fdrv_${DISTRO_FILE_PREFIX}_${DISTRO_VERSION}.sfs"
+-[ ! "$DISTRO_ADRVSFS" ] && DISTRO_ADRVSFS="adrv_${DISTRO_FILE_PREFIX}_${DISTRO_VERSION}.sfs"
+-[ ! "$DISTRO_YDRVSFS" ] && DISTRO_YDRVSFS="ydrv_${DISTRO_FILE_PREFIX}_${DISTRO_VERSION}.sfs"
+-[ ! "$DISTRO_BDRVSFS" ] && DISTRO_BDRVSFS="bdrv_${DISTRO_FILE_PREFIX}_${DISTRO_VERSION}.sfs"
+-[ ! "$DISTRO_PUPPYSFS" ] && DISTRO_PUPPYSFS="puppy_${DISTRO_FILE_PREFIX}_${DISTRO_VERSION}.sfs"
+-
+-# filenames specified in DISTRO_SPECS: DISTRO_ZDRVSFS, DISTRO_PUPPYSFS...
+-Z_DEF_FN="$DISTRO_ZDRVSFS"
+-F_DEF_FN="$DISTRO_FDRVSFS"
+-A_DEF_FN="$DISTRO_ADRVSFS"
+-Y_DEF_FN="$DISTRO_YDRVSFS"
+-B_DEF_FN="$DISTRO_BDRVSFS"
+-P_DEF_FN="$DISTRO_PUPPYSFS"
+ KBUILD_DEF_FN="kbuild-$KERNELVER.sfs"
+ 
+ if [ ! "$LOGLEVEL" ] ; then
+@@ -165,22 +150,6 @@
+   fi
+ }
+ 
+-decode_spec() {
+- #${1} = an sfs spec e.g. sdb2:/pup/test_it.sfs
+- ONE_BP_ID=""; ONE_BP_FN=""
+- [ "${1}" ] || return
+- case "${1}" in
+-  *:*) ONE_BP_ID="${1%%:*}"; ONE_BP_FN="${1#*:}" ;;
+-  *) ONE_BP_ID="${1}" ;;
+- esac
+- if [ "$ONE_BP_FN" ];then
+-  case "$ONE_BP_FN" in
+-   */*) [ "${ONE_BP_FN:0:1}" != "/" ] && ONE_BP_FN="/$ONE_BP_FN" ;;
+-   *) ONE_BP_FN="$PSUBDIR/$ONE_BP_FN" ;;
+-  esac
+- fi
+-}
+-
+ wait_for_blkid() {
+  # $1 value to look for
+  # $2 type of value 'id|fs'
+@@ -223,27 +192,6 @@
+  ONE_PART="$BLKID_PART"
+ }
+ 
+-decode_other_ids() {
+- #get ONE_PART from DEV or ID specified in sfs boot params
+- decode_id "$Z_BP_ID"
+- [ "$ONE_PART" ] && { Z_PART="$ONE_PART"; Z_BP_ID=""; }
+- decode_id "$F_BP_ID"
+- [ "$ONE_PART" ] && { F_PART="$ONE_PART"; F_BP_ID=""; }
+- decode_id "$A_BP_ID"
+- [ "$ONE_PART" ] && { A_PART="$ONE_PART"; A_BP_ID=""; }
+- decode_id "$Y_BP_ID"
+- [ "$ONE_PART" ] && { Y_PART="$ONE_PART"; Y_BP_ID=""; }
+- decode_id "$B_BP_ID"
+- [ "$ONE_PART" ] && { B_PART="$ONE_PART"; B_BP_ID=""; }
+- decode_id "$SAVE_BP_ID"
+- [ "$ONE_PART" ] && { SAVEPART="$ONE_PART"; PSAVEPART="$ONE_PART"; SAVE_BP_ID=""; }
+-}
+-
+-log_part_id() {
+-# "$1" - partition id - ex: Work or sdc4
+- echo "Partition ${1} not found."
+-}
+-
+ ensure_mounted() {
+ # "$1" - partition - ex: sda3
+ # "$2" - mountpoint - ex: /mnt/pdrv
+@@ -303,47 +251,6 @@
+  fi
+ }
+ 
+-find_drv_file() {
+-# "$1" - specified filename - ex: /pup/mydrv-1.2.3.sfs
+-# "$2" - default filename - ex: adrv_tahr_6.0.5.sfs
+- ONE_FN=""
+- [ "${1}" ] || [ "${2}" ] || return
+- if [ "${1}" ];then
+-  case ${1} in
+-   */) ONE_TRY_FN="${1}${2}" ;;
+-   *) ONE_TRY_FN="${1}" ;;
+-  esac
+- else
+-  ONE_TRY_FN="${PSUBDIR}/${2}"
+- fi
+- if [ -L "${ONE_MP}${ONE_TRY_FN}" ];then
+-   C_MP="$(readlink -f "$ONE_MP")"
+-   ONE_TRY_FN="$(readlink -f "${C_MP}${ONE_TRY_FN}")"
+-   ONE_TRY_FN="${ONE_TRY_FN#${C_MP}}"
+- fi
+- [ -f "${ONE_MP}${ONE_TRY_FN}" ] && ONE_FN="$ONE_TRY_FN"
+-}
+-
+-find_onepupdrv() {
+-# "$1" - partition - ex: sda3
+-# "$2" - specified filename - ex: /pup/mydrv-1.2.3.sfs
+-# "$3" - default filename - ex: adrv_tahr_6.0.5.sfs
+-# "$4" - prefix for "drv" mountpoint - ex: a
+- ONE_FN=""
+- [ "${2}" ] || [ "${3}" ] || return
+- [ "${4}" ] || return
+- if [ "${1}" ];then
+-  ONE_PART="${1}"
+- else
+-  ONE_PART="$P_PART"
+- fi
+- [ "$ONE_PART" ] || return
+- ensure_mounted "$ONE_PART" "/mnt/${4}drv"
+- [ "$ONE_MP" ] || return
+- find_drv_file "${2}" "${3}"
+- [ "$ONE_FN" = "" -a "${2}" ] && echo "$ONE_PART, $ONE_TRY_FN file not found."
+-}
+-
+ setup_onepupdrv() {
+ # "$1" - sfs spec - ex: sdb2,ext4,/pup/mydrv-1.2.3.sfs
+ # "$2" - suffix for "pup_" branch directory - ex: a
+@@ -773,11 +680,6 @@
+ #100915 requested by technosaurus (formats get changed further down)...
+ [ $pdrv ] && PDRV=$pdrv #format partition:<path><filename> ex: sda2:/slacko/puppy_slacko_6.3.0.sfs
+ [ $pupsfs ] && PDRV=$pupsfs
+-[ $zdrv ] && ZDRV=$zdrv #ex: sda2:/slacko/zdrv_slacko_6.3.0.sfs
+-[ $fdrv ] && FDRV=$fdrv
+-[ $adrv ] && ADRV=$adrv
+-[ $ydrv ] && YDRV=$ydrv
+-[ $bdrv ] && BDRV=$bdrv
+ #<partition>:<filename>, for savefile/savefolder. <partition> can be a name or Label or UUID
+ [ $psave ] && PSAVE=$psave #ex: sdb4:/puppy/tahr/tahrsave or smark or 49baa82d-8c69:tahrsave
+ #list of kernel modules to load, ex: pimod=hid-logitech-dj.ko,kernel/drivers/hid/hid-multitouch.ko 
+@@ -828,26 +730,6 @@
+ 
+ [ "$PDEBUG" ] && echo "0: PMEDIA=$PMEDIA PDRV=$PDRV PSUBDIR=$PSUBDIR pfix=$pfix"
+ 
+-#100915 technosaurus recommendation (see above)...
+-[ "$PDRV" ] && { decode_spec "$PDRV"; P_BP_ID="$ONE_BP_ID"; P_BP_FN="$ONE_BP_FN"; PDRV=""; }
+-[ "$ZDRV" ] && { decode_spec "$ZDRV"; Z_BP_ID="$ONE_BP_ID"; Z_BP_FN="$ONE_BP_FN"; ZDRV=""; }
+-[ "$FDRV" ] && { decode_spec "$FDRV"; F_BP_ID="$ONE_BP_ID"; F_BP_FN="$ONE_BP_FN"; FDRV=""; }	
+-[ "$ADRV" ] && { decode_spec "$ADRV"; A_BP_ID="$ONE_BP_ID"; A_BP_FN="$ONE_BP_FN"; ADRV=""; }
+-[ "$YDRV" ] && { decode_spec "$YDRV"; Y_BP_ID="$ONE_BP_ID"; Y_BP_FN="$ONE_BP_FN"; YDRV=""; }
+-[ "$BDRV" ] && { decode_spec "$BDRV"; B_BP_ID="$ONE_BP_ID"; B_BP_FN="$ONE_BP_FN"; BDRV=""; }
+-[ "$PSAVE" ] && { decode_spec "$PSAVE"; SAVE_BP_ID="$ONE_BP_ID"; SAVE_BP_FN="$ONE_BP_FN"; }
+-SAVE_BP_DIR=""
+-[ "$SAVE_BP_FN" ] && [ "${SAVE_BP_FN:$((${#SAVE_BP_FN} - 1))}" = "/" ] && SAVE_BP_DIR="$SAVE_BP_FN" #last char
+-
+-#first look inside initrd...
+-#unset x_DEF_FN so that find_onepupdrv() won't look for it
+-[ -f /${P_DEF_FN} ] && { PDRV="rootfs,rootfs,/$P_DEF_FN"; P_DEF_FN=""; }
+-[ -f /${Z_DEF_FN} ] && { ZDRV="rootfs,rootfs,/$Z_DEF_FN"; Z_DEF_FN=""; }
+-[ -f /${F_DEF_FN} ] && { FDRV="rootfs,rootfs,/$F_DEF_FN"; F_DEF_FN=""; }
+-[ -f /${A_DEF_FN} ] && { ADRV="rootfs,rootfs,/$A_DEF_FN"; A_DEF_FN=""; }
+-[ -f /${Y_DEF_FN} ] && { YDRV="rootfs,rootfs,/$Y_DEF_FN"; Y_DEF_FN=""; }
+-[ -f /${B_DEF_FN} ] && { BDRV="rootfs,rootfs,/$B_DEF_FN"; B_DEF_FN=""; }
+-
+ #setup wireless
+ [ "$PWIRELESS" ] && echo -e "SSID=${PWIRELESS%:*}\nPSWD=${PWIRELESS#*:}" > /tmp/wireless.conf
+ 
+@@ -870,24 +752,6 @@
+ fi
+ 
+ #establish PDRV
+-P_PART=""; LOOK_PUP=""; LOOK_SAVE=""
+-if [ "$P_BP_ID" ];then #specified as parameter
+- decode_id "$P_BP_ID"
+- [ "$ONE_PART" ] && { P_PART="$ONE_PART"; P_BP_ID=""; }
+- find_onepupdrv "$P_PART" "$P_BP_FN" "$P_DEF_FN" "p"
+- [ "$ONE_FN" ] && { PDRV="$ONE_PART,$ONE_FS,$ONE_FN"; P_MP="$ONE_MP"; }
+- [ "$PDEBUG" ] && echo "2: ONE_PART=$ONE_PART ONE_FN=$ONE_FN ONE_MP=$ONE_MP"
+-elif [ "$PDRV" = "" ];then #not specified anywhere
+- #determine what to search for
+- [ "$PMEDIA" = "cd" ] && LOOK_SAVE="yes"
+- [ "$SAVE_BP_ID" -o "$PSAVEMARK" ] && LOOK_SAVE=""
+- LOOK_PUP=yes
+- [ "$PDEBUG" ] && echo "2: LOOK_PUP=$LOOK_PUP LOOK_SAVE=$LOOK_SAVE PMEDIA=$PMEDIA"
+-fi
+-
+-if [ "$LOOK_PUP" -o "$LOOK_SAVE" ];then #something to search for
+- [ "${PMEDIA:0:3}" != "usb" ] && search_func
+- if [ "$P_PART" = "" ];then
+   wait_for_dev
+   USBDRVS="$(find /sys/block -maxdepth 1 -name 'sd*' -o -name 'sr*' | xargs -n 1 readlink 2>/dev/null | grep '/usb[0-9]' | rev | cut -f 1 -d '/' | rev | tr '\n' '|')"
+   [ "$PDEBUG" ] && echo "2: USBDRVS=$USBDRVS -> ${USBDRVS%|}"
+@@ -898,16 +762,6 @@
+   fi
+  fi
+ fi
+-[ "$P_BP_ID" ] && { log_part_id "$P_BP_ID"; ONE_PART="$P_BP_ID"; }
+-[ "$PDEBUG" ] && echo "6: ONE_PART=$ONE_PART ONE_TRY_FN=$ONE_TRY_FN PDRV=$PDRV"
+-if [ "$PDRV" = "" ];then
+- [ "$ONE_TRY_FN" ] || ONE_TRY_FN="$PSUBDIR/$P_DEF_FN"
+- fatal_error "$ONE_PART $ONE_TRY_FN not found." "Finding puppy main sfs file."
+-fi
+-
+-check_resize_part
+-grep -v '^sr' /tmp/ALLDRVS0 > /tmp/ATADRIVES0
+-ATAOPTICALDRIVES="$(grep '^sr' /tmp/ALLDRVS0 | tr '\n' ' ')"
+ 
+ #establish SAVEPART
+ decode_other_ids
+@@ -925,66 +779,6 @@
+   fi
+  fi
+ fi
+-
+-#have pup...sfs, now try to load it
+-RAMSIZE=$(free | grep -o 'Mem: .*' | tr -s ' ' | cut -f 2 -d ' ') #total physical ram (less shared video). 110405
+-
+-mount -t tmpfs tmpfs /mnt/tmpfs
+-[ -d "/mnt/tmpfs/pup_rw" ] || mkdir /mnt/tmpfs/pup_rw
+-mount -t aufs -o udba=reval,diropq=w,br=/mnt/tmpfs/pup_rw=rw,xino=/mnt/tmpfs/.aufs.xino unionfs /pup_new 
+-[ $? -eq 0 ] || fatal_error "${L_ERROR_FAILED_AUFS_STACK}"
+-
+-NEWUNIONRECORD=""
+-COPY2RAM=""
+-
+-LOADMSG="${L_LOAD_MESSAGE}"
+-setup_onepupdrv "$PDRV" "p"
+-STATUS=$?
+-if [ $STATUS -gt 0 ];then
+- P_PRE_MSG="${L_PRE_MESSAGE}"
+- case $STATUS in
+-  1) fatal_error "$(printf "${L_ERR_PDRV_INCOMPLETE}" "$PDRV")" "$P_PRE_MSG" ;;
+-  2) fatal_error "$(printf "${L_ERR_ONEPART_NOT_MOUNTED}" "$ONE_PART")" "$P_PRE_MSG" ;;
+-  3) fatal_error "$(printf "${L_ERR_ONEPART_NOT_OK}" "$ONE_PART" "$ONE_REL_FN")" "$P_PRE_MSG" ;;
+-  4) fatal_error "$(printf "${L_ERR_ONEPART_MOUNT_SFS_FAILED}" "$ONE_PART" "$ONE_REL_FN")" "$P_PRE_MSG" ;;
+-  5) fatal_error "$(printf "${L_ERR_AUFS_SFS_FAILED}" "$ONE_LAYER")" "$P_PRE_MSG" ;;
+- esac
+-fi
+-PUP_LAYER="$SFS_MP"
+-
+-#all partition id's should be decoded by now
+-[ "$Z_BP_ID" ] && log_part_id "$Z_BP_ID"
+-[ "$F_BP_ID" ] && log_part_id "$F_BP_ID"
+-[ "$A_BP_ID" ] && log_part_id "$A_BP_ID"
+-[ "$Y_BP_ID" ] && log_part_id "$Y_BP_ID"
+-[ "$B_BP_ID" ] && log_part_id "$B_BP_ID"
+-[ "$SAVE_BP_ID" ] && log_part_id "$SAVE_BP_ID"
+-
+-#have basic system, now try to add optional stuff
+-find_onepupdrv "$F_PART" "$F_BP_FN" "$F_DEF_FN" "f"
+-[ "$ONE_FN" ] && FDRV="$ONE_PART,$ONE_FS,$ONE_FN"
+-[ "$FDRV" ] && { LOADMSG="fdrv"; setup_onepupdrv "$FDRV" "f"; }
+-
+-find_onepupdrv "$Z_PART" "$Z_BP_FN" "$Z_DEF_FN" "z"
+-[ "$ONE_FN" ] && ZDRV="$ONE_PART,$ONE_FS,$ONE_FN"
+-[ "$ZDRV" ] && { LOADMSG="zdrv"; setup_onepupdrv "$ZDRV" "z"; }
+-
+-find_onepupdrv "$Y_PART" "$Y_BP_FN" "$Y_DEF_FN" "y"
+-[ "$ONE_FN" ] && YDRV="$ONE_PART,$ONE_FS,$ONE_FN"
+-[ "$YDRV" ] && { LOADMSG="ydrv"; setup_onepupdrv "$YDRV" "y" "p"; }
+-
+-find_onepupdrv "$B_PART" "$B_BP_FN" "$B_DEF_FN" "b"
+-[ "$ONE_FN" ] && BDRV="$ONE_PART,$ONE_FS,$ONE_FN"
+-[ "$BDRV" ] && { LOADMSG="bdrv"; setup_onepupdrv "$BDRV" "b" "p"; }
+-
+-find_onepupdrv "$A_PART" "$A_BP_FN" "$A_DEF_FN" "a"
+-[ "$ONE_FN" ] && ADRV="$ONE_PART,$ONE_FS,$ONE_FN"
+-[ "$ADRV" ] && { LOADMSG="adrv"; setup_onepupdrv "$ADRV" "a" "p"; }
+-
+-find_onepupdrv "" "" "$KBUILD_DEF_FN" "k"
+-[ "$ONE_FN" ] && KBUILD="$ONE_PART,$ONE_FS,$ONE_FN"
+-[ "$KBUILD" ] && { LOADMSG="kbuild"; setup_onepupdrv "$KBUILD" "k" "p"; }
+-
+ #process SAVESPEC - takes precedence - written by shutdownconfig
+ if [ -f "${P_MP}${PSUBDIR}/SAVESPEC" ];then
+  echo "Using ${P_MP}${PSUBDIR}/SAVESPEC"

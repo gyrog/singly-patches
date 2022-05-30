@@ -1,0 +1,22 @@
+--- init.orig	2022-05-22 19:53:30.058325184 +1000
++++ init	2022-05-22 19:53:55.657326912 +1000
+@@ -927,6 +927,19 @@
+ P_PART="$SPEC_PART"
+ P_MP="$SPEC_MP"
+ 
++# process DRV_SPECS in install directory, if present
++DRV_SPEC_FFN="${P_MP}${PSUBDIR}/DRV_SPECS"
++if [ -f "$DRV_SPEC_FFN" ]; then
++  echo "Using $DRV_SPEC_FFN"
++  # ensure only DRV variables get used
++  SPEC_TMP_FN="/tmp/${DRV_SPEC_FFN##*/}.txt"
++  tr -d '\r' < "$DRV_SPEC_FFN" | grep "^DRV_" > "$SPEC_TMP_FN"
++  . "$SPEC_TMP_FN"
++  [ "$DRV_AP" ] && APPEND_DRVS="$DRV_AP"
++  [ "$DRV_PRE" ] && PREPEND_DRVS="$DRV_PRE"
++  rm "$SPEC_TMP_FN"
++fi
++
+ #have basic system, now try to add optional stuff
+ DRVS_TMP_FN='/tmp/drvs_defs.txt'
+ [ -e "$DRVS_TMP_FN" ] && rm "$DRVS_TMP_FN"
