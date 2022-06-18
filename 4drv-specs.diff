@@ -1,6 +1,31 @@
---- init.orig	2022-06-14 12:58:28.272090526 +1000
-+++ init	2022-06-14 13:01:11.124101517 +1000
-@@ -948,6 +948,19 @@
+--- init.orig	2022-06-14 12:58:28.272090000 +1000
++++ init	2022-06-18 12:28:48.262028706 +1000
+@@ -350,8 +350,8 @@
+   # sets $SPEC_REL_FN if the original was a symbolic link
+   echo "process_one_sfsIN 1=$1 2=$2"
+   [ "$1" ] || return 1
+-  local ONE_SFS_SPEC=''
+-  local ROOTFS_SPEC=''
++  local ONE_SFS_SPEC ROOTFS_SPEC SPEC_VAR
++  ONE_SFS_SPEC=''; ROOTFS_SPEC=''
+   # set default filename
+   if [ "$1" = 'p' ];then
+     ONE_DEF_FN="$DISTRO_PUPPYSFS"
+@@ -377,7 +377,12 @@
+       esac
+     fi
+   elif [ "$1" != 'k' ];then
+-    eval ONE_SFS_SPEC="\$${1}drv"
++    SPEC_VAR="DRV_${1}" # defined in DRV_SPECS file
++    eval ONE_SFS_SPEC="\$$SPEC_VAR"
++    if [ "$ONE_SFS_SPEC" = "" ];then
++      SPEC_VAR="${1}drv" # defined in boot parameter
++      eval ONE_SFS_SPEC="\$$SPEC_VAR"
++    fi
+   fi
+   if [ "$ONE_SFS_SPEC" = "" ];then
+     if [ "$ROOTFS_SPEC" ];then
+@@ -948,6 +953,19 @@
  P_PART="$SPEC_PART"
  P_MP="$SPEC_MP"
  
