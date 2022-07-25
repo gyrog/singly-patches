@@ -1,8 +1,8 @@
---- init.r	2022-06-14 12:49:05.625052000 +1000
-+++ init	2022-06-14 12:49:50.239055562 +1000
-@@ -90,6 +90,15 @@
- #Filesystem to be fsck
- FSCKLIST="ext2|ext3|ext4|vfat|msdos|exfat"
+--- init.rem	2022-07-24 03:10:26.484071575 +1000
++++ init.ins	2022-07-24 03:16:52.188097607 +1000
+@@ -93,6 +93,15 @@
+ # Layered file system to use
+ UNIONFS='aufs'
  
 +# ?drv_...sfs files to load below puppy_...sfs
 +#APPEND_DRVS="q r s t u v w x"
@@ -16,7 +16,7 @@
  #=============================================================
  #                        FUNCTIONS
  #=============================================================
-@@ -251,6 +260,155 @@
+@@ -256,6 +265,163 @@
   fi
  }
  
@@ -63,7 +63,7 @@
 +    esac
 +  fi
 +  if [ "$PART" ];then
-+    ensure_mounted "$PART" "/mnt/${2}drv" #sets ONE_MP an ONE_FS
++    ensure_mounted "$PART" "/mnt/${2}drv" #sets ONE_MP and ONE_FS
 +    if [ "$ONE_MP" ];then
 +      SPEC_MP="$ONE_MP"
 +      SPEC_FS="$ONE_FS"
@@ -99,6 +99,19 @@
 +  fi
 +}
 +
++do_one_sfs_spec() {
++  # $1 = sfs-spec
++  # $2 = drvId  e.g. 'a' or 'f'
++  # $3 = disposition 'a' or 'p' for 'append|prepend'
++    interpret_spec "$1" "$2"
++    [ "$SPEC_PART" ] || return 11
++    find_drv_file "$SPEC_MP" "$SPEC_REL_FN"
++    [ "$ONE_FN" ] || return 13
++    SPEC_REL_FN="$ONE_FN"
++    setup_onepupdrv "${2}" "${3}"
++    return $?
++}
++
 +process_one_sfs() {
 +  # $1 = drvId  e.g. 'a' or 'f'
 +  # $2 = disposition 'a' or 'p' for 'append|prepend'
@@ -106,8 +119,8 @@
 +  # sets $SPEC_REL_FN if the original was a symbolic link
 +  echo "process_one_sfsIN 1=$1 2=$2"
 +  [ "$1" ] || return 1
-+  local ONE_SFS_SPEC=''
-+  local ROOTFS_SPEC=''
++  local ONE_SFS_SPEC ROOTFS_SPEC SPEC_VAR
++  ONE_SFS_SPEC=''; ROOTFS_SPEC=''
 +  # set default filename
 +  if [ "$1" = 'p' ];then
 +    ONE_DEF_FN="$DISTRO_PUPPYSFS"
@@ -133,7 +146,8 @@
 +      esac
 +    fi
 +  elif [ "$1" != 'k' ];then
-+    eval ONE_SFS_SPEC="\$${1}drv"
++    SPEC_VAR="${1}drv" # defined in boot parameter
++    eval ONE_SFS_SPEC="\$$SPEC_VAR"
 +  fi
 +  if [ "$ONE_SFS_SPEC" = "" ];then
 +    if [ "$ROOTFS_SPEC" ];then
@@ -146,17 +160,11 @@
 +    fi
 +  fi
 +  if [ "$ONE_SFS_SPEC" ];then
-+    interpret_spec "$ONE_SFS_SPEC" "$1"
-+    [ "$SPEC_PART" ] || return 3
-+    find_drv_file "$SPEC_MP" "$SPEC_REL_FN"
-+    if [ "$ONE_FN" = "" ];then
-+      echo "${SPEC_REL_FN##*/}, file not found"
++    do_one_sfs_spec "$ONE_SFS_SPEC" "$1" "$2"
++    if [ $? -ne 0 ];then
++      echo "${ONE_SFS_SPEC##*/}, file not found"
 +      return 3
 +    fi
-+    SPEC_REL_FN="$ONE_FN"
-+    setup_onepupdrv "${1}" "${2}"
-+    STATUS=$?
-+    [ $STATUS -eq 0 ] || return $STATUS
 +    local PLACE="${SPEC_PART},${SPEC_FS},${SPEC_REL_FN}"
 +    if [ "$1" = 'p' ];then
 +      PUPSFS="$PLACE"
@@ -172,10 +180,16 @@
  setup_onepupdrv() {
  # "$1" - sfs spec - ex: sdb2,ext4,/pup/mydrv-1.2.3.sfs
  # "$2" - suffix for "pup_" branch directory - ex: a
-@@ -741,6 +899,22 @@
+@@ -782,6 +948,26 @@
  
  [ "$PDEBUG" ] && echo "1: PDRV=$PDRV P_BP_ID=$P_BP_ID P_BP_FN=$P_BP_FN"
  
++#completely sortout info on the stack structure
++#create appropriate stack only at the end, either aufs or overlayfs
++RO_DIR_LIST=''			# ':' separated list of sfs MP's in stack order
++RW_DIR=''				# directory to go at top of stack, usually contains SAVE data
++RO_DIR=''				# MP of "pup_ro1" for odd pupmode, empty otherwise
++
 +get_part_info
 +grep -v '^sr' /tmp/ALLDRVS0 > /tmp/ATADRIVES0
 +ATAOPTICALDRIVES="$(grep '^sr' /tmp/ALLDRVS0 | tr '\n' ' ')"
@@ -186,8 +200,6 @@
 +
 +mount -t tmpfs tmpfs /mnt/tmpfs
 +[ -d "/mnt/tmpfs/pup_rw" ] || mkdir /mnt/tmpfs/pup_rw
-+mount -t aufs -o udba=reval,diropq=w,br=/mnt/tmpfs/pup_rw=rw,xino=/mnt/tmpfs/.aufs.xino unionfs /pup_new 
-+[ $? -eq 0 ] || fatal_error "${L_ERROR_FAILED_AUFS_STACK}"
 +
 +NEWUNIONRECORD=""
 +COPY2RAM=""
@@ -195,7 +207,7 @@
  #"pdrv" is not specified on CD, so look for CD file system
  if [ "$PMEDIA" = "cd" ];then
   wait_for_blkid 'iso9660' 'fs'
-@@ -752,6 +926,11 @@
+@@ -793,6 +979,11 @@
  fi
  
  #establish PDRV
@@ -207,7 +219,7 @@
    wait_for_dev
    USBDRVS="$(find /sys/block -maxdepth 1 -name 'sd*' -o -name 'sr*' | xargs -n 1 readlink 2>/dev/null | grep '/usb[0-9]' | rev | cut -f 1 -d '/' | rev | tr '\n' '|')"
    [ "$PDEBUG" ] && echo "2: USBDRVS=$USBDRVS -> ${USBDRVS%|}"
-@@ -762,8 +941,50 @@
+@@ -803,8 +994,50 @@
    fi
   fi
  fi
@@ -258,3 +270,69 @@
  decode_other_ids
  if [ "$P_PART" ];then
   BOOTDRV="$(echo -n "$P_PART" | grep -o -f /tmp/ALLDRVS0)" #110205 ex: sda1 becomes sda.
+@@ -1094,6 +1327,65 @@
+  ;;
+ esac
+ 
++#create appropriate stack
++echo ""
++if [ "$UNIONFS" = 'overlay' ];then
++  if [ "$RW_DIR" = '/mnt/tmpfs/pup_rw' ];then
++    WK_DIR='/mnt/tmpfs/pup_work'
++  else
++    WK_DIR="${RW_DIR}/work"
++    RW_DIR="${RW_DIR}/upper"
++  fi
++  [ -d "$RW_DIR" ] || mkdir "$RW_DIR"
++  [ -d "$WK_DIR" ] || mkdir "$WK_DIR"
++  [ -e /pup_rw ] && rm -rf /pup_rw
++  ln -sfv "$RW_DIR" /pup_rw
++  [ -e /pup_work ] && rm -rf /pup_work
++  ln -sfv "$WK_DIR" /pup_work
++  [ "$RO_DIR" ] && RO_DIR_LIST="${RO_DIR}:{RO_DIR_LIST}"
++#append extra sfs files
++  if [ "$PUPSAVE" -a -s /pup_rw/etc/rc.d/BOOTCONFIG ];then
++    SAVE_SPEC="${PUPSAVE%/*}"
++    SFS_SPEC="${PUPSFS%/*}"
++    X_PART="${SAVE_SPEC%%,*}"
++    X_DIR="${SAVE_SPEC##*,}"
++    LOADMSG="extra"
++    EXTRASFSLIST=''
++    . /pup_rw/etc/rc.d/BOOTCONFIG
++    for X_SFS in $EXTRASFSLIST;do
++      NUM=$(losetup -f); NUM=${NUM#/dev/loop}
++      if [ "$SAVE_SPEC" = "$SFS_SPEC" ];then
++        X_LIST="${X_PART}:${X_DIR}/${X_SFS} $X_PART:/${X_SFS}"
++      else
++        X_LIST="${X_PART}:${X_DIR}/${X_SFS} $X_PART:/${X_SFS} :${X_SFS}"
++      fi
++      for X_SPEC in $X_LIST;do
++        do_one_sfs_spec "$X_SPEC" "ro${NUM}"
++        STATUS=$?
++        [ $STATUS -eq 0 ] && break
++      done
++      if [ $STATUS -eq 0 ];then
++        echo "Using ${SPEC_MP}${SPEC_REL_FN} as an extra sfs file, pup_ro${NUM}."
++      else
++        echo "${X_SFS}, file not found"
++      fi
++    done
++  fi
++  echo "mount -t overlay -o lowerdir=${RO_DIR_LIST},upperdir=/pup_rw,workdir=/pup_work,xino=on unionfs /pup_new"
++  mount -t overlay -o lowerdir=${RO_DIR_LIST},upperdir=/pup_rw,workdir=/pup_work,xino=on unionfs /pup_new
++else
++  if [ ! -L /pup_rw ];then
++    [ -e /pup_rw ] && rm -rf /pup_rw
++    ln -sfv "$RW_DIR" /pup_rw
++  fi
++  RO_DIR_LIST="${RO_DIR_LIST//:/=rr:}=rr"
++  [ "$RO_DIR" ] && RO_DIR_LIST="${RO_DIR}=ro+wh:${RO_DIR_LIST}"
++  echo "mount -t aufs -o udba=reval,diropq=w,br=/pup_rw=rw:${RO_DIR_LIST},xino=/mnt/tmpfs/.aufs.xino unionfs /pup_new"
++  mount -t aufs -o udba=reval,diropq=w,br=/pup_rw=rw:${RO_DIR_LIST},xino=/mnt/tmpfs/.aufs.xino unionfs /pup_new
++fi
++[ $? -eq 0 ] || fatal_error "$(printf "${L_ERROR_FAILED_STACK}" $UNIONFS)"
++echo ""
++
+ umount_unneeded
+ 
+ echo -n $(($TOTAL_SIZEK_SFS_RAM - 5)) > /tmp/sfs_ram_sizek
