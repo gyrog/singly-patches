@@ -1,5 +1,5 @@
---- init.rem	2022-07-24 03:10:26.484071575 +1000
-+++ init.ins	2022-07-24 03:16:52.188097607 +1000
+--- init.orig	2022-09-25 11:41:17.161021473 +1000
++++ init	2022-09-25 11:47:50.566048025 +1000
 @@ -93,6 +93,15 @@
  # Layered file system to use
  UNIONFS='aufs'
@@ -16,10 +16,27 @@
  #=============================================================
  #                        FUNCTIONS
  #=============================================================
-@@ -256,6 +265,163 @@
+@@ -256,30 +265,172 @@
   fi
  }
  
+-setup_onepupdrv() {
+-# "$1" - sfs spec - ex: sdb2,ext4,/pup/mydrv-1.2.3.sfs
+-# "$2" - suffix for "pup_" branch directory - ex: a
+-# "$3" - prepend after rw layer indicator - ex: p
+- ONE_LAYER=""
+- ONE_PART="$(echo "${1}" | cut -f 1 -d ',')"
+- [ "$ONE_PART" ] || return 1
+- ONE_REL_FN="$(echo "${1}" | cut -f 3 -d ',')"
+- [ "$ONE_REL_FN" ] || return 1
+- ONE_SFX="${2}"
+- ONE_PREP="${3}"
+- if [ "$ONE_PART" = "rootfs" ];then #humongous initrd.
+-  ONE_MP="" #actually it's '/'.
+-  COPY2RAM='yes' #actually it is already in ram, but load_sfs_file code puts it in a tmpfs.
+- else
+-  if [ "$ONE_PART" = "$P_PART" ];then
+-   ONE_MP="$P_MP"
 +#dismember, separate, enumerate
 +interpret_spec() {
 +  # $1 = drv-spec
@@ -52,9 +69,14 @@
 +    decode_id "$PART"
 +    [ "$ONE_PART" ] || return
 +    PART="$ONE_PART"
-+  else
+   else
+-   ONE_MP="$(mount | grep -m1 "/dev/$ONE_PART " | cut -f 3 -d ' ')"
+-   [ "$ONE_MP" ] || return 2
 +    PART="$P_PART"
-+  fi
+   fi
+- fi
+- ONE_FN="${ONE_MP}${ONE_REL_FN}"
+- ONE_BASENAME="$(basename $ONE_REL_FN)"
 +  if [ "$REL" ];then
 +    case "$REL" in
 +      */) REL="/${REL#/}"; REL="${REL}${ONE_DEF_FN}" ;;
@@ -177,18 +199,40 @@
 +  return 9
 +}
 +
- setup_onepupdrv() {
- # "$1" - sfs spec - ex: sdb2,ext4,/pup/mydrv-1.2.3.sfs
- # "$2" - suffix for "pup_" branch directory - ex: a
-@@ -782,6 +948,26 @@
++setup_onepupdrv() {
++# "$1" - suffix for "pup_" branch directory - ex: a
++# "$2" - prepend after rw layer indicator - ex: p  
++#  use $SPEC_PART $SPEC_MP $SPEC_REL_FN
++ ONE_LAYER=""
++ ONE_SFX="${1}"
++ ONE_PREP="${2}"
++ ONE_FN="${SPEC_MP}${SPEC_REL_FN}"
++ ONE_BASENAME="$(basename $SPEC_REL_FN)"
+  if ! [ -s "$ONE_FN" ] ; then
+    return 3 #sfs not Ok - empty file
+  fi
+@@ -768,30 +919,51 @@
+   . /sbin/isoboot # optional, can remove all occurrences of "isoboot" from this script
+ fi
  
- [ "$PDEBUG" ] && echo "1: PDRV=$PDRV P_BP_ID=$P_BP_ID P_BP_FN=$P_BP_FN"
+-[ "$PDEBUG" ] && echo "0: PMEDIA=$PMEDIA PDRV=$PDRV PSUBDIR=$PSUBDIR pfix=$pfix"
++[ "$PDEBUG" ] && echo "0: PMEDIA=$PMEDIA PDRV=$PDRV PSUBDIR=$PSUBDIR PSAVE=$PSAVE pfix=$pfix"
  
+ #setup wireless
+ [ "$PWIRELESS" ] && echo -e "SSID=${PWIRELESS%:*}\nPSWD=${PWIRELESS#*:}" > /tmp/wireless.conf
+ 
+-get_part_info
+-
+ PUP_SAVES=""
+ KEEPMOUNTED=""
+ FSCKDPARTS=""
+ 
+-[ "$PDEBUG" ] && echo "1: PDRV=$PDRV P_BP_ID=$P_BP_ID P_BP_FN=$P_BP_FN"
 +#completely sortout info on the stack structure
 +#create appropriate stack only at the end, either aufs or overlayfs
-+RO_DIR_LIST=''			# ':' separated list of sfs MP's in stack order
-+RW_DIR=''				# directory to go at top of stack, usually contains SAVE data
-+RO_DIR=''				# MP of "pup_ro1" for odd pupmode, empty otherwise
++RO_DIR_LIST=''	# ':' separated list of sfs MP's in stack order
++RW_DIR=''		# directory to go at top of stack, usually contains SAVE data
++RO_DIR=''		# MP of "pup_ro1" for odd pupmode, empty otherwise
 +
 +get_part_info
 +grep -v '^sr' /tmp/ALLDRVS0 > /tmp/ATADRIVES0
@@ -203,11 +247,16 @@
 +
 +NEWUNIONRECORD=""
 +COPY2RAM=""
-+
+ 
  #"pdrv" is not specified on CD, so look for CD file system
  if [ "$PMEDIA" = "cd" ];then
   wait_for_blkid 'iso9660' 'fs'
-@@ -793,6 +979,11 @@
+  if [ "$BLKID_PART" ];then
+   if [ "$(echo $BLKID_PART | wc -w)" = "1" ];then
+-   P_BP_ID="$BLKID_PART"
++   PDRV="$BLKID_PART"
+   fi
+  fi
  fi
  
  #establish PDRV
@@ -219,9 +268,13 @@
    wait_for_dev
    USBDRVS="$(find /sys/block -maxdepth 1 -name 'sd*' -o -name 'sr*' | xargs -n 1 readlink 2>/dev/null | grep '/usb[0-9]' | rev | cut -f 1 -d '/' | rev | tr '\n' '|')"
    [ "$PDEBUG" ] && echo "2: USBDRVS=$USBDRVS -> ${USBDRVS%|}"
-@@ -803,8 +994,50 @@
+@@ -800,11 +972,52 @@
+   else
+     search_func
    fi
-  fi
+- fi
++  setup_onepupdrv 'p'
++  STATUS=$?
  fi
 +if [ $STATUS -gt 0 ];then
 + P_PRE_MSG="${L_PRE_MESSAGE}"
@@ -249,10 +302,10 @@
 +  LOADMSG="${ONE_DRV}drv"
 +  process_one_sfs "$ONE_DRV" 'p'
 +done
-+
 +echo --------------------
  
  #establish SAVEPART
+-decode_other_ids
 +ONE_DEF_FN=''
 +#process PSAVE
 +[ "$PSAVE" ] || PSAVE="$ISO_PSAVE"
@@ -267,10 +320,65 @@
 +  fi
 +fi
 +#process SAVEMARK
- decode_other_ids
  if [ "$P_PART" ];then
   BOOTDRV="$(echo -n "$P_PART" | grep -o -f /tmp/ALLDRVS0)" #110205 ex: sda1 becomes sda.
-@@ -1094,6 +1327,65 @@
+  if [ "$SAVEPART" = "" ];then #setup SAVEPART
+@@ -870,18 +1083,30 @@
+ fi
+ #modprobe modules needed by keyboard
+ if [ "$PIMOD" != "" ]; then
+- [ -L "/lib/modules/$KERNELVER" ] || ln -sv /pup_new/lib/modules/$KERNELVER /lib/modules/$KERNELVER
+- [ -L "/lib/firmware" ] || ln -sv /pup_new/lib/firmware /lib/firmware
+- for ONEMOD in `echo -n "$PIMOD" | tr ',' ' '`;do
+-  echo -n "$(printf "${L_ADDING_MODULE}" "$ONEMOD")" > /dev/console
+-  modprobe "$ONEMOD" > /dev/console 2>&1
+-  check_status $?
+- done
++  # build sfs stack
++  [ -d /pup_sfs ] || mkdir /pup_sfs
++  case $RO_DIR_LIST in
++    *:*) echo "mount -t overlay -o ro,noatime,lowerdir=${RO_DIR_LIST} overlay /pup_sfs"
++      mount -t overlay -o ro,noatime,lowerdir=${RO_DIR_LIST} overlay /pup_sfs >/dev/console 2>&1
++      STATUS=$?
++    ;;
++    *) ln -sv $RO_DIR_LIST /pup_sfs
++      STATUS=$?
++    ;;
++  esac
++  if [ $STATUS -eq 0 ];then
++    [ -L "/lib/modules/$KERNELVER" ] || ln -sv /pup_sys/lib/modules/$KERNELVER /lib/modules/$KERNELVER
++    [ -L "/lib/firmware" ] || ln -sv /pup_sys/lib/firmware /lib/firmware
++    for ONEMOD in `echo -n "$PIMOD" | tr ',' ' '`;do
++      echo -n "$(printf "${L_ADDING_MODULE}" "$ONEMOD")" > /dev/console
++      modprobe "$ONEMOD" > /dev/console 2>&1
++      check_status $?
++    done
++  fi
++  umount /pup_sfs
++  rm -rf /pup_sfs
+ fi
+ 
+-#find PUPSAVE, sortout pupmode
+-PUPMODE=5
+-
+ #debug
+ echo --------------------
+ echo "SAVE_MP=${SAVE_MP}"
+@@ -890,7 +1115,12 @@
+ mount
+ echo --------------------
+ 
+-PUPSAVE=""
++#find PUPSAVE, sortout pupmode
++PUPSAVE=''
++PUPMODE=5
++RW_DIR='/mnt/tmpfs/pup_rw'
++[ -e /pup_rw ] && rm -rf /pup_rw
++
+ if [ "${SAVE_MP}" != "" -a "$PRAMONLY" != "yes" ];then #have mounted save? partition
+  #check if save partition is linux
+  set_fs_linux "$SAVE_FS"
+@@ -1093,11 +1323,63 @@
   ;;
  esac
  
@@ -279,32 +387,29 @@
 +if [ "$UNIONFS" = 'overlay' ];then
 +  if [ "$RW_DIR" = '/mnt/tmpfs/pup_rw' ];then
 +    WK_DIR='/mnt/tmpfs/pup_work'
++    [ -e /pup_rw ] || ln -sv '/mnt/tmpfs/pup_rw' /pup_rw
 +  else
-+    WK_DIR="${RW_DIR}/work"
-+    RW_DIR="${RW_DIR}/upper"
++    WK_DIR="${RW_DIR%/upper}/work"
 +  fi
-+  [ -d "$RW_DIR" ] || mkdir "$RW_DIR"
 +  [ -d "$WK_DIR" ] || mkdir "$WK_DIR"
-+  [ -e /pup_rw ] && rm -rf /pup_rw
-+  ln -sfv "$RW_DIR" /pup_rw
-+  [ -e /pup_work ] && rm -rf /pup_work
-+  ln -sfv "$WK_DIR" /pup_work
-+  [ "$RO_DIR" ] && RO_DIR_LIST="${RO_DIR}:{RO_DIR_LIST}"
++  rm -rf /pup_work
++  ln -sv "$WK_DIR" /pup_work
++  [ "$RO_DIR" ] && RO_DIR_LIST="${RO_DIR}:${RO_DIR_LIST}"
 +#append extra sfs files
-+  if [ "$PUPSAVE" -a -s /pup_rw/etc/rc.d/BOOTCONFIG ];then
++  if [ "$PUPSAVE" -a -s $SAVE_LAYER/etc/rc.d/BOOTCONFIG ];then
 +    SAVE_SPEC="${PUPSAVE%/*}"
 +    SFS_SPEC="${PUPSFS%/*}"
 +    X_PART="${SAVE_SPEC%%,*}"
 +    X_DIR="${SAVE_SPEC##*,}"
 +    LOADMSG="extra"
 +    EXTRASFSLIST=''
-+    . /pup_rw/etc/rc.d/BOOTCONFIG
++    . $SAVE_LAYER/etc/rc.d/BOOTCONFIG
 +    for X_SFS in $EXTRASFSLIST;do
 +      NUM=$(losetup -f); NUM=${NUM#/dev/loop}
 +      if [ "$SAVE_SPEC" = "$SFS_SPEC" ];then
-+        X_LIST="${X_PART}:${X_DIR}/${X_SFS} $X_PART:/${X_SFS}"
++        X_LIST="${X_PART}:${X_DIR}/${X_SFS} ${X_PART}:/${X_SFS}"
 +      else
-+        X_LIST="${X_PART}:${X_DIR}/${X_SFS} $X_PART:/${X_SFS} :${X_SFS}"
++        X_LIST="${X_PART}:${X_DIR}/${X_SFS} ${X_PART}:/${X_SFS} :${X_SFS}"
 +      fi
 +      for X_SPEC in $X_LIST;do
 +        do_one_sfs_spec "$X_SPEC" "ro${NUM}"
@@ -321,10 +426,6 @@
 +  echo "mount -t overlay -o lowerdir=${RO_DIR_LIST},upperdir=/pup_rw,workdir=/pup_work,xino=on unionfs /pup_new"
 +  mount -t overlay -o lowerdir=${RO_DIR_LIST},upperdir=/pup_rw,workdir=/pup_work,xino=on unionfs /pup_new
 +else
-+  if [ ! -L /pup_rw ];then
-+    [ -e /pup_rw ] && rm -rf /pup_rw
-+    ln -sfv "$RW_DIR" /pup_rw
-+  fi
 +  RO_DIR_LIST="${RO_DIR_LIST//:/=rr:}=rr"
 +  [ "$RO_DIR" ] && RO_DIR_LIST="${RO_DIR}=ro+wh:${RO_DIR_LIST}"
 +  echo "mount -t aufs -o udba=reval,diropq=w,br=/pup_rw=rw:${RO_DIR_LIST},xino=/mnt/tmpfs/.aufs.xino unionfs /pup_new"
@@ -336,3 +437,9 @@
  umount_unneeded
  
  echo -n $(($TOTAL_SIZEK_SFS_RAM - 5)) > /tmp/sfs_ram_sizek
+ 
+-[ "$DEV1FS" ] || DEV1FS="$(echo "$PDRV" | cut -f 2 -d ',')"
++[ "$DEV1FS" ] || DEV1FS="$(echo "$PUPSFS" | cut -f 2 -d ',')"
+ [ "$ATADRIVES" ] || ATADRIVES="$(cat /tmp/ATADRIVES0 | tr '\n' ' ')"
+ 
+ mkdir -p /pup_new/etc/rc.d

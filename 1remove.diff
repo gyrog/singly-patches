@@ -1,5 +1,5 @@
---- init.git	2022-07-20 21:45:08.919896949 +1000
-+++ init.rem	2022-07-24 03:10:26.484071575 +1000
+--- init.orig	2022-09-25 11:40:14.850017268 +1000
++++ init	2022-09-25 11:41:17.161021473 +1000
 @@ -75,21 +75,6 @@
  . /etc/rc.d/functions_x
  export DISTRODESC="${DISTRO_NAME} ${DISTRO_VERSION} - Linux ${KERNELVER} - `uname -m`"
@@ -124,7 +124,7 @@
  setup_onepupdrv() {
  # "$1" - sfs spec - ex: sdb2,ext4,/pup/mydrv-1.2.3.sfs
  # "$2" - suffix for "pup_" branch directory - ex: a
-@@ -786,25 +690,6 @@
+@@ -785,25 +689,6 @@
   check_status -critical 1 "$1"
  }
  
@@ -150,7 +150,7 @@
  #=============================================================
  #                           MAIN
  #=============================================================
-@@ -836,11 +721,6 @@
+@@ -835,11 +720,6 @@
  #100915 requested by technosaurus (formats get changed further down)...
  [ $pdrv ] && PDRV=$pdrv #format partition:<path><filename> ex: sda2:/slacko/puppy_slacko_6.3.0.sfs
  [ $pupsfs ] && PDRV=$pupsfs
@@ -162,7 +162,7 @@
  #<partition>:<filename>, for savefile/savefolder. <partition> can be a name or Label or UUID
  [ $psave ] && PSAVE=$psave #ex: sdb4:/puppy/tahr/tahrsave or smark or 49baa82d-8c69:tahrsave
  #list of kernel modules to load, ex: pimod=hid-logitech-dj.ko,kernel/drivers/hid/hid-multitouch.ko 
-@@ -891,26 +771,6 @@
+@@ -890,26 +770,6 @@
  
  [ "$PDEBUG" ] && echo "0: PMEDIA=$PMEDIA PDRV=$PDRV PSUBDIR=$PSUBDIR pfix=$pfix"
  
@@ -189,7 +189,7 @@
  #setup wireless
  [ "$PWIRELESS" ] && echo -e "SSID=${PWIRELESS%:*}\nPSWD=${PWIRELESS#*:}" > /tmp/wireless.conf
  
-@@ -933,24 +793,6 @@
+@@ -932,24 +792,6 @@
  fi
  
  #establish PDRV
@@ -214,7 +214,7 @@
    wait_for_dev
    USBDRVS="$(find /sys/block -maxdepth 1 -name 'sd*' -o -name 'sr*' | xargs -n 1 readlink 2>/dev/null | grep '/usb[0-9]' | rev | cut -f 1 -d '/' | rev | tr '\n' '|')"
    [ "$PDEBUG" ] && echo "2: USBDRVS=$USBDRVS -> ${USBDRVS%|}"
-@@ -961,16 +803,6 @@
+@@ -960,16 +802,6 @@
    fi
   fi
  fi
@@ -231,7 +231,7 @@
  
  #establish SAVEPART
  decode_other_ids
-@@ -988,64 +820,6 @@
+@@ -987,64 +819,6 @@
    fi
   fi
  fi
@@ -296,7 +296,7 @@
  #process SAVESPEC - takes precedence - written by shutdownconfig
  if [ -f "${P_MP}${PSUBDIR}/SAVESPEC" ];then
   echo "Using ${P_MP}${PSUBDIR}/SAVESPEC"
-@@ -1320,16 +1094,6 @@
+@@ -1319,16 +1093,6 @@
   ;;
  esac
  
