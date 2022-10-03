@@ -1,5 +1,5 @@
 --- init.git	2022-09-25 11:42:57.577028000 +1000
-+++ init	2022-09-28 11:23:27.293054284 +1000
++++ init.singly	2022-10-03 12:05:00.963018220 +1000
 @@ -28,8 +28,8 @@
  L_UPGRADE_NO="Backing off, not using personal storage, booting in RAM only, PUPMODE=5..."
  L_LOADING_FROM_CD="Loading folder %s from CD/DVD..." #printf
@@ -845,7 +845,7 @@
  #moved up here to ensure config files are available
  [ "$SAVEPART" ] && ensure_save_mounted
  
-@@ -1096,18 +1084,30 @@
+@@ -1096,18 +1084,31 @@
  fi
  #modprobe modules needed by keyboard
  if [ "$PIMOD" != "" ]; then
@@ -868,8 +868,9 @@
 +    ;;
 +  esac
 +  if [ $STATUS -eq 0 ];then
-+    [ -L "/lib/modules/$KERNELVER" ] || ln -sv /pup_sys/lib/modules/$KERNELVER /lib/modules/$KERNELVER
-+    [ -L "/lib/firmware" ] || ln -sv /pup_sys/lib/firmware /lib/firmware
++    [ -d "/lib/modules" ] || mkdir -p "/lib/modules"
++    [ -L "/lib/modules/$KERNELVER" ] || ln -sv /pup_sfs/lib/modules/$KERNELVER /lib/modules/$KERNELVER
++    [ -L "/lib/firmware" ] || ln -sv /pup_sfs/lib/firmware /lib/firmware
 +    for ONEMOD in `echo -n "$PIMOD" | tr ',' ' '`;do
 +      echo -n "$(printf "${L_ADDING_MODULE}" "$ONEMOD")" > /dev/console
 +      modprobe "$ONEMOD" > /dev/console 2>&1
@@ -886,7 +887,7 @@
  #debug
  echo --------------------
  echo "SAVE_MP=${SAVE_MP}"
-@@ -1116,7 +1116,12 @@
+@@ -1116,7 +1117,12 @@
  mount
  echo --------------------
  
@@ -900,7 +901,7 @@
  if [ "${SAVE_MP}" != "" -a "$PRAMONLY" != "yes" ];then #have mounted save? partition
   #check if save partition is linux
   set_fs_linux "$SAVE_FS"
-@@ -1212,7 +1217,6 @@
+@@ -1212,7 +1218,6 @@
  fi
  
  SAVE_LAYER=""
@@ -908,7 +909,7 @@
  if [ "$PUPSAVE" ];then #refine pupmode
   # refine pupmode
   if [ $PUPMODE -eq 12 ];then
-@@ -1237,45 +1241,23 @@
+@@ -1237,45 +1242,23 @@
    [ $PUPMODE -eq 77 ] && copy_folders #to /pup_ro1 (part of the tmpfs)
    [ $PUPMODE -eq 13 ] && setup_psave
    if [ "$PUPSAVE" ] ; then
@@ -962,7 +963,7 @@
    fi
   ;;
   66) #extract to stack at new tmpfs
-@@ -1283,33 +1265,15 @@
+@@ -1283,33 +1266,15 @@
    if [ -s "$ARCHIVE_FN" ];then
      echo -n "$(printf "${L_LOADING_SAVE_ARCHIVE}" "${PUPSAVE#*,*,}" "$SAVEPART")" > /dev/console
      echo "--SAVEARCHIVE-- $ARCHIVE_FN" #debug
@@ -1002,7 +1003,7 @@
      fi
      check_status $STATUS
    fi
-@@ -1319,21 +1283,63 @@
+@@ -1319,21 +1284,63 @@
   ;;
  esac
  
@@ -1075,7 +1076,7 @@
  [ "$ATADRIVES" ] || ATADRIVES="$(cat /tmp/ATADRIVES0 | tr '\n' ' ')"
  
  mkdir -p /pup_new/etc/rc.d
-@@ -1341,7 +1347,7 @@
+@@ -1341,7 +1348,7 @@
  echo "PUPMODE=$PUPMODE"
  echo "PDEV1='$P_PART'"
  echo "DEV1FS='$DEV1FS'"
@@ -1084,7 +1085,7 @@
  echo "PUPSAVE='$PUPSAVE'"
  echo "PMEDIA='$PMEDIA'"
  echo '#ATADRIVES is all internal ide/pata/sata drives, excluding optical, excluding usb...'
-@@ -1355,12 +1361,6 @@
+@@ -1355,12 +1362,6 @@
  echo "#The partition that has the ${DISTRO_FILE_PREFIX}save file is mounted here..."
  echo "PUP_HOME='${SAVE_MP}'"
  echo '#(in /initrd) ...note, /mnt/home is a link to it.'
@@ -1097,7 +1098,7 @@
  echo '#Partition no. override on boot drive to which session is (or will be) saved...'
  echo "PSAVEMARK='$PSAVEMARK'"
  echo "PSAVEPART='$PSAVEPART'"
-@@ -1371,6 +1371,8 @@
+@@ -1371,6 +1372,8 @@
  echo "DOMIBS='no'"
  [ -f /sbin/set_plang ] && plang_pupstate #echo
  ) > /pup_new/etc/rc.d/PUPSTATE
@@ -1106,7 +1107,7 @@
  
  if [ "$PUPSAVE" ];then
   xBOOTCONFIG="$(grep -v '^PREVUNIONRECORD' /pup_new/etc/rc.d/BOOTCONFIG | sed -e 's/^LASTUNIONRECORD/PREVUNIONRECORD/')"
-@@ -1385,17 +1387,15 @@
+@@ -1385,17 +1388,15 @@
  
  echo "Moving mountpoints to /pup_new/initrd for after switch..." #debug
  rm -r -f "/pup_new/initrd${SAVE_LAYER}"
