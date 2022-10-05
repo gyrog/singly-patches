@@ -1,5 +1,5 @@
---- init.git	2022-09-25 11:42:57.577028000 +1000
-+++ init.singly	2022-10-03 12:05:00.963018220 +1000
+--- init.git	2022-10-05 23:36:00.424516821 +1000
++++ init.singly	2022-10-05 23:40:26.497534779 +1000
 @@ -28,8 +28,8 @@
  L_UPGRADE_NO="Backing off, not using personal storage, booting in RAM only, PUPMODE=5..."
  L_LOADING_FROM_CD="Loading folder %s from CD/DVD..." #printf
@@ -128,22 +128,16 @@
  ensure_mounted() {
  # "$1" - partition - ex: sda3
  # "$2" - mountpoint - ex: /mnt/pdrv
-@@ -297,10 +258,10 @@
-   if [ "$ONE_MP" != "$SAVE_MP" ];then
-    #ensure SAVEPART is mounted on /mnt/dev_save
+@@ -299,6 +260,8 @@
     [ -d "$SAVE_MP" ] || mkdir -p $SAVE_MP
--   OPT="move"
--   [ "$UNIONFS" = 'overlay' ] && OPT="bind"
--   echo "mount -o $OPT $ONE_MP $SAVE_MP" #debug
--   mount -o $OPT $ONE_MP $SAVE_MP
-+   echo "mount -o move $ONE_MP $SAVE_MP" #debug
-+   mount -o move $ONE_MP $SAVE_MP
+    echo "mount -o move $ONE_MP $SAVE_MP" #debug
+    mount -o move $ONE_MP $SAVE_MP
 +   #re-establish P_MP if PDRV was the moved partition MP
 +   [ "$SAVEPART" = "$P_PART" ] && P_MP="$SAVE_MP"
    fi
    SAVE_FS="$ONE_FS"
   else
-@@ -308,74 +269,176 @@
+@@ -306,74 +269,176 @@
   fi
  }
  
@@ -381,7 +375,7 @@
   if ! [ -s "$ONE_FN" ] ; then
     return 3 #sfs not Ok - empty file
   fi
-@@ -388,6 +451,9 @@
+@@ -386,6 +451,9 @@
     COPY2RAM="no"
   fi
   #-
@@ -391,7 +385,7 @@
   if [ "$COPY2RAM" = "" ];then
    COPY2RAM="no"
    #if there's heaps of ram, copy puppy.sfs to a tmpfs...
-@@ -404,57 +470,36 @@
+@@ -402,57 +470,36 @@
    SIZEZK=$(du -k $ONE_FN | cut -f 1)
    TFREEK=$(df | grep -m1 ' /mnt/tmpfs' | tr -s ' ' | cut -f 4 -d ' ')
    if [ $TFREEK -gt $SIZEZK ];then
@@ -461,7 +455,7 @@
   fi
   NEWUNIONRECORD="${NEWUNIONRECORD}${ONE_BASENAME} "
   return 0
-@@ -475,22 +520,13 @@
+@@ -473,22 +520,13 @@
    /sbin/load_ext_file "$SAVE_FN" "$SAVE_MP" #reads $PFSCK
    if [ -f /tmp/savefile_loop ] ; then
      . /tmp/savefile_loop # $SAVEFILE_LOOP $SFFS
@@ -490,7 +484,7 @@
      fi
    else # load_ext_file failed
      FLAG_NO_TIMEOUT=1
-@@ -498,18 +534,18 @@
+@@ -496,18 +534,18 @@
    fi
   elif [ -d "$SAVE_FN" ];then #savefolder
    echo "--SAVEFOLDER-- $SAVE_FN" #debug
@@ -516,7 +510,7 @@
    SAVE_NAME="$(basename $SAVE_REL_FN)"
    #- fix for empty pupsaves (missing /initrd/DISTRO_SPECS)
    if [ ! -f "$SAVE_LAYER/initrd/DISTRO_SPECS" ] ; then
-@@ -678,7 +714,7 @@
+@@ -685,7 +723,7 @@
  
  search_func() {
   [ "$PDEBUG" -a "$LOOK_SAVE" ] && echo "3: filename=${PSUBDIR}/${DISTRO_FILE_PREFIX}save"
@@ -525,7 +519,7 @@
   echo "HAVE_PARTS='${HAVE_PARTS}'" #debug
   if [ "${1}" ];then
    echo "param='${1}'" #debug
-@@ -705,12 +741,15 @@
+@@ -712,12 +750,15 @@
      fi
     fi
     if [ "$LOOK_PUP" ];then
@@ -545,7 +539,7 @@
       break;
      fi
     fi
-@@ -785,25 +824,6 @@
+@@ -792,25 +833,6 @@
   check_status -critical 1 "$1"
  }
  
@@ -571,7 +565,7 @@
  #=============================================================
  #                           MAIN
  #=============================================================
-@@ -835,11 +855,6 @@
+@@ -842,11 +864,6 @@
  #100915 requested by technosaurus (formats get changed further down)...
  [ $pdrv ] && PDRV=$pdrv #format partition:<path><filename> ex: sda2:/slacko/puppy_slacko_6.3.0.sfs
  [ $pupsfs ] && PDRV=$pupsfs
@@ -583,7 +577,7 @@
  #<partition>:<filename>, for savefile/savefolder. <partition> can be a name or Label or UUID
  [ $psave ] && PSAVE=$psave #ex: sdb4:/puppy/tahr/tahrsave or smark or 49baa82d-8c69:tahrsave
  #list of kernel modules to load, ex: pimod=hid-logitech-dj.ko,kernel/drivers/hid/hid-multitouch.ko 
-@@ -851,6 +866,10 @@
+@@ -858,6 +875,10 @@
  else
   WAITDEV=5
  fi
@@ -594,7 +588,7 @@
  
  #[ $pdebug ] && PDEBUG=$pdebug
  PDEBUG=1
-@@ -888,68 +907,51 @@
+@@ -895,68 +916,51 @@
    . /sbin/isoboot # optional, can remove all occurrences of "isoboot" from this script
  fi
  
@@ -689,7 +683,7 @@
    wait_for_dev
    USBDRVS="$(find /sys/block -maxdepth 1 -name 'sd*' -o -name 'sr*' | xargs -n 1 readlink 2>/dev/null | grep '/usb[0-9]' | rev | cut -f 1 -d '/' | rev | tr '\n' '|')"
    [ "$PDEBUG" ] && echo "2: USBDRVS=$USBDRVS -> ${USBDRVS%|}"
-@@ -958,21 +960,65 @@
+@@ -965,21 +969,65 @@
    else
      search_func
    fi
@@ -765,7 +759,7 @@
  if [ "$P_PART" ];then
   BOOTDRV="$(echo -n "$P_PART" | grep -o -f /tmp/ALLDRVS0)" #110205 ex: sda1 becomes sda.
   if [ "$SAVEPART" = "" ];then #setup SAVEPART
-@@ -981,70 +1027,13 @@
+@@ -988,70 +1036,13 @@
    if [ "$PSAVEMARK" -a "$BOOTDRV" ];then
     ONE_PART="${BOOTDRV}${PSAVEMARK}" #note, PSAVEMARK could also be a kernel boot param. ex: 2
     if [ "$(echo $HAVE_PARTS | grep "$ONE_PART")" ];then #partition exists
@@ -837,7 +831,7 @@
  #process SAVESPEC - takes precedence - written by shutdownconfig
  if [ -f "${P_MP}${PSUBDIR}/SAVESPEC" ];then
   echo "Using ${P_MP}${PSUBDIR}/SAVESPEC"
-@@ -1077,7 +1066,6 @@
+@@ -1084,7 +1075,6 @@
  [ "$SAVEPART" ] || SAVEPART="$P_PART"
  
  #ensure that save partition is mounted
@@ -845,7 +839,7 @@
  #moved up here to ensure config files are available
  [ "$SAVEPART" ] && ensure_save_mounted
  
-@@ -1096,18 +1084,31 @@
+@@ -1103,18 +1093,31 @@
  fi
  #modprobe modules needed by keyboard
  if [ "$PIMOD" != "" ]; then
@@ -887,7 +881,7 @@
  #debug
  echo --------------------
  echo "SAVE_MP=${SAVE_MP}"
-@@ -1116,7 +1117,12 @@
+@@ -1123,7 +1126,12 @@
  mount
  echo --------------------
  
@@ -901,7 +895,7 @@
  if [ "${SAVE_MP}" != "" -a "$PRAMONLY" != "yes" ];then #have mounted save? partition
   #check if save partition is linux
   set_fs_linux "$SAVE_FS"
-@@ -1212,7 +1218,6 @@
+@@ -1219,7 +1227,6 @@
  fi
  
  SAVE_LAYER=""
@@ -909,7 +903,7 @@
  if [ "$PUPSAVE" ];then #refine pupmode
   # refine pupmode
   if [ $PUPMODE -eq 12 ];then
-@@ -1237,45 +1242,23 @@
+@@ -1244,45 +1251,23 @@
    [ $PUPMODE -eq 77 ] && copy_folders #to /pup_ro1 (part of the tmpfs)
    [ $PUPMODE -eq 13 ] && setup_psave
    if [ "$PUPSAVE" ] ; then
@@ -963,7 +957,7 @@
    fi
   ;;
   66) #extract to stack at new tmpfs
-@@ -1283,33 +1266,15 @@
+@@ -1290,33 +1275,15 @@
    if [ -s "$ARCHIVE_FN" ];then
      echo -n "$(printf "${L_LOADING_SAVE_ARCHIVE}" "${PUPSAVE#*,*,}" "$SAVEPART")" > /dev/console
      echo "--SAVEARCHIVE-- $ARCHIVE_FN" #debug
@@ -1003,7 +997,7 @@
      fi
      check_status $STATUS
    fi
-@@ -1319,21 +1284,63 @@
+@@ -1326,21 +1293,63 @@
   ;;
  esac
  
@@ -1076,7 +1070,7 @@
  [ "$ATADRIVES" ] || ATADRIVES="$(cat /tmp/ATADRIVES0 | tr '\n' ' ')"
  
  mkdir -p /pup_new/etc/rc.d
-@@ -1341,7 +1348,7 @@
+@@ -1348,7 +1357,7 @@
  echo "PUPMODE=$PUPMODE"
  echo "PDEV1='$P_PART'"
  echo "DEV1FS='$DEV1FS'"
@@ -1085,7 +1079,7 @@
  echo "PUPSAVE='$PUPSAVE'"
  echo "PMEDIA='$PMEDIA'"
  echo '#ATADRIVES is all internal ide/pata/sata drives, excluding optical, excluding usb...'
-@@ -1355,12 +1362,6 @@
+@@ -1362,12 +1371,6 @@
  echo "#The partition that has the ${DISTRO_FILE_PREFIX}save file is mounted here..."
  echo "PUP_HOME='${SAVE_MP}'"
  echo '#(in /initrd) ...note, /mnt/home is a link to it.'
@@ -1098,7 +1092,7 @@
  echo '#Partition no. override on boot drive to which session is (or will be) saved...'
  echo "PSAVEMARK='$PSAVEMARK'"
  echo "PSAVEPART='$PSAVEPART'"
-@@ -1371,6 +1372,8 @@
+@@ -1378,6 +1381,8 @@
  echo "DOMIBS='no'"
  [ -f /sbin/set_plang ] && plang_pupstate #echo
  ) > /pup_new/etc/rc.d/PUPSTATE
@@ -1107,25 +1101,3 @@
  
  if [ "$PUPSAVE" ];then
   xBOOTCONFIG="$(grep -v '^PREVUNIONRECORD' /pup_new/etc/rc.d/BOOTCONFIG | sed -e 's/^LASTUNIONRECORD/PREVUNIONRECORD/')"
-@@ -1385,17 +1388,15 @@
- 
- echo "Moving mountpoints to /pup_new/initrd for after switch..." #debug
- rm -r -f "/pup_new/initrd${SAVE_LAYER}"
--OPT="move"
--[ "$UNIONFS" = 'overlay' ] && OPT="bind"
- for ONEMNT in $(mount | cut -f 3 -d ' ' | grep -v 'pup_new' | grep '^/pup_' | tr '\n' ' ');do
-  mkdir -p /pup_new/initrd${ONEMNT}
-- echo "mount -o $OPT $ONEMNT /pup_new/initrd${ONEMNT}" #debug
-- mount -o $OPT $ONEMNT /pup_new/initrd${ONEMNT}
-+ echo "mount -o move $ONEMNT /pup_new/initrd${ONEMNT}" #debug
-+ mount -o move $ONEMNT /pup_new/initrd${ONEMNT}
- done
- for ONEMNT in $(mount | cut -f 3 -d ' ' | grep '^/mnt/' | tr '\n' ' ');do
-  mkdir -p /pup_new/initrd${ONEMNT}
-- echo "mount -o $OPT $ONEMNT /pup_new/initrd${ONEMNT}" #debug
-- mount -o $OPT $ONEMNT /pup_new/initrd${ONEMNT}
-+ echo "mount -o move $ONEMNT /pup_new/initrd${ONEMNT}" #debug
-+ mount -o move $ONEMNT /pup_new/initrd${ONEMNT}
- done
- 
- echo -------------------- # debug
